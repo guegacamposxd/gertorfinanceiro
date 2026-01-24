@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestor Financeiro Capivara Pro</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap');
+        
+        body {
+            font-family: 'Poppins', sans-serif;
+            background-color: #fdf5e6;
+        }
+
+        .capivara-container {
+            transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 180px;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            box-shadow: 0 10px 25px rgba(93, 64, 55, 0.1);
+        }
+
+        @keyframes capy-idle {
+            0%, 100% { transform: scale(1) translateY(0px); }
+            50% { transform: scale(1.02) translateY(-5px); }
+        }
+        
+        @keyframes blink {
+            0%, 90%, 100% { transform: scaleY(1); }
+            95% { transform: scaleY(0.1); }
+        }
+
+        .capy-body {
+            animation: capy-idle 4s ease-in-out infinite;
+            filter: drop-shadow(0 5px 15px rgba(0,0,0,0.1));
+        }
+
+        .capy-eye {
+            transform-origin: center;
+            animation: blink 4s infinite;
+        }
+
+        .category-tag {
+            font-size: 0.65rem;
+            padding: 2px 8px;
+            border-radius: 999px;
+            text-transform: uppercase;
+            font-weight: 700;
+        }
+
+        .tab-btn {
+            transition: all 0.3s ease;
+        }
+        .tab-btn.active-gasto { background-color: #ef4444; color: white; }
+        .tab-btn.active-ganho { background-color: #10b981; color: white; }
+        .tab-btn.active-cartao { background-color: #8b5cf6; color: white; }
+        
+        .history-column {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .total-expense-card {
+            background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+            border: 1px solid #f87171;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+    <div class="max-w-7xl mx-auto">
+        <header class="text-center mb-8">
+            <h1 class="text-3xl font-bold text-[#5d4037]">Capivara Financeira Pro 🦫</h1>
+            <p class="text-gray-600">Gestão com Saldo Acumulado e Cartão de Crédito</p>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+            <!-- Sidebar -->
+            <div class="lg:col-span-1 space-y-6">
+                <div class="card p-6 text-center">
+                    <h2 class="text-lg font-semibold mb-2 text-[#5d4037]">Mascote Capivara</h2>
+                    <div id="capivara-mood" class="capivara-container"></div>
+                    <div id="capivara-msg" class="text-sm font-medium mt-4">A carregar...</div>
+                </div>
+
+                <div class="card p-6">
+                    <h2 class="text-lg font-semibold mb-4 text-[#5d4037]">Resumo Financeiro</h2>
+                    <div class="space-y-4">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <p class="text-xs text-gray-500 uppercase font-bold">Saldo Total</p>
+                                <p id="total-balance" class="text-2xl font-bold text-green-600">R$ 0,00</p>
+                            </div>
+                        </div>
+                        <div class="p-3 bg-gray-50 rounded-lg">
+                            <p class="text-[10px] text-gray-400 uppercase font-bold">Acumulado Anterior</p>
+                            <p id="carried-balance" class="text-sm font-semibold text-gray-600">R$ 0,00</p>
+                        </div>
+                        <div>
+                            <div class="flex justify-between mb-1">
+                                <p class="text-xs text-gray-500 uppercase">Meta de Poupança</p>
+                                <p id="goal-percent" class="text-xs font-bold text-green-600">0%</p>
+                            </div>
+                            <input type="number" id="saving-goal" value="1000" oninput="updateUI()" class="w-full bg-transparent border-b-2 border-green-200 focus:border-green-500 outline-none font-semibold text-lg mb-2">
+                            <div class="w-full bg-gray-200 rounded-full h-2">
+                                <div id="goal-progress" class="bg-green-500 h-2 rounded-full transition-all duration-500" style="width: 0%"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card p-6">
+                    <h2 class="text-lg font-semibold mb-4 text-[#5d4037]">Ações</h2>
+                    <button onclick="exportToCSV()" class="w-full mb-3 flex items-center justify-center gap-2 bg-[#5d4037] text-white p-3 rounded-xl font-bold hover:bg-[#4e342e] transition-all shadow-md">
+                        📊 Exportar para Excel (CSV)
+                    </button>
+                    <button onclick="clearAll()" class="w-full p-2 text-xs text-red-400 hover:text-red-600 transition-colors">
+                        Limpar todos os dados
+                    </button>
+                </div>
+
+                <div class="card p-6">
+                    <h2 class="text-lg font-semibold mb-4 text-[#5d4037]">Categorias de Gastos</h2>
+                    <div id="category-breakdown" class="space-y-3"></div>
+                </div>
+            </div>
+
+            <!-- Principal -->
+            <div class="lg:col-span-3 space-y-6">
+                <!-- Gráfico -->
+                <div class="card p-6">
+                    <h2 class="text-lg font-semibold mb-4 text-[#5d4037]">Evolução Mensal</h2>
+                    <div class="h-[250px] w-full">
+                        <canvas id="evolutionChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Resumo Consolidado de Gastos -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div class="card p-4 total-expense-card">
+                        <p class="text-[10px] text-red-700 font-bold uppercase">Gasto Total (Consolidado)</p>
+                        <p id="consolidated-expense-total" class="text-2xl font-black text-red-600">R$ 0,00</p>
+                        <p class="text-[9px] text-red-500 mt-1">Soma de Débito + Cartão</p>
+                    </div>
+                    <div class="card p-4 bg-red-50 border border-red-100">
+                        <p class="text-[10px] text-red-500 font-bold uppercase">Total em Débito</p>
+                        <p id="summary-debit-total" class="text-xl font-bold text-red-500">R$ 0,00</p>
+                    </div>
+                    <div class="card p-4 bg-purple-50 border border-purple-100">
+                        <p class="text-[10px] text-purple-500 font-bold uppercase">Total em Cartão</p>
+                        <p id="summary-credit-total" class="text-xl font-bold text-purple-500">R$ 0,00</p>
+                    </div>
+                </div>
+
+                <!-- Formulário -->
+                <div class="card p-6 border-t-4 border-[#5d4037]" id="transaction-card">
+                    <h2 class="text-lg font-semibold mb-4 text-[#5d4037]">Nova Transação</h2>
+                    <div class="flex gap-2 mb-6 bg-gray-100 p-1 rounded-xl">
+                        <button onclick="setTransactionType('gasto')" id="btn-tab-gasto" class="tab-btn active-gasto flex-1 py-2 px-4 rounded-lg font-bold text-sm flex items-center justify-center gap-2">💸 Débito</button>
+                        <button onclick="setTransactionType('cartao')" id="btn-tab-cartao" class="tab-btn flex-1 py-2 px-4 rounded-lg font-bold text-sm text-gray-500 flex items-center justify-center gap-2">💳 Cartão</button>
+                        <button onclick="setTransactionType('ganho')" id="btn-tab-ganho" class="tab-btn flex-1 py-2 px-4 rounded-lg font-bold text-sm text-gray-500 flex items-center justify-center gap-2">💰 Ganho</button>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <input type="text" id="desc" placeholder="Descrição (Ex: Supermercado)" class="col-span-2 p-3 rounded-lg border border-gray-200 outline-none focus:ring-2 focus:ring-[#5d4037]">
+                        <div class="relative col-span-2 md:col-span-1">
+                            <span class="absolute left-3 top-3 text-gray-400 font-bold">R$</span>
+                            <input type="number" id="val" placeholder="0,00" class="w-full p-3 pl-10 rounded-lg border border-gray-200 outline-none focus:ring-2 focus:ring-[#5d4037]">
+                        </div>
+                        <div class="col-span-2 md:col-span-1">
+                            <input type="date" id="transaction-date" class="w-full p-3 rounded-lg border border-gray-200 outline-none focus:ring-2 focus:ring-[#5d4037]">
+                        </div>
+                        <select id="category" class="col-span-2 p-3 rounded-lg border border-gray-200 outline-none focus:ring-2 focus:ring-[#5d4037]"></select>
+                        <button id="main-submit-btn" onclick="addTransaction()" class="col-span-2 p-4 bg-red-500 text-white font-bold rounded-lg hover:opacity-90 transition-all shadow-lg">Confirmar Lançamento</button>
+                    </div>
+                </div>
+
+                <!-- Histórico de 3 Colunas -->
+                <div class="card p-6">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-lg font-semibold text-[#5d4037]">Histórico Detalhado</h2>
+                        <select id="month-filter" onchange="updateMonthContext()" class="text-sm font-bold bg-gray-100 p-2 rounded-lg outline-none text-[#5d4037]"></select>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <!-- Coluna Ganhos -->
+                        <div class="flex flex-col h-full bg-green-50/30 p-3 rounded-xl">
+                            <div class="flex items-center gap-2 pb-2 border-b-2 border-green-500 mb-4">
+                                <span class="text-xl">💰</span>
+                                <h3 class="font-bold text-green-700 text-sm">Ganhos</h3>
+                            </div>
+                            <div class="history-column flex-grow">
+                                <table class="w-full text-left">
+                                    <tbody id="income-list" class="divide-y divide-gray-100"></tbody>
+                                </table>
+                                <div id="income-empty" class="hidden text-center py-4 text-gray-400 text-xs">Vazio.</div>
+                            </div>
+                            <div class="mt-4 pt-3 border-t border-green-100">
+                                <p class="text-[10px] text-gray-500 font-bold uppercase">Total Ganhos</p>
+                                <span id="subtotal-income" class="font-bold text-green-600 text-sm">R$ 0,00</span>
+                            </div>
+                        </div>
+
+                        <!-- Coluna Débito -->
+                        <div class="flex flex-col h-full bg-red-50/30 p-3 rounded-xl">
+                            <div class="flex items-center gap-2 pb-2 border-b-2 border-red-500 mb-4">
+                                <span class="text-xl">💸</span>
+                                <h3 class="font-bold text-red-700 text-sm">Débitos</h3>
+                            </div>
+                            <div class="history-column flex-grow">
+                                <table class="w-full text-left">
+                                    <tbody id="expense-list" class="divide-y divide-gray-100"></tbody>
+                                </table>
+                                <div id="expense-empty" class="hidden text-center py-4 text-gray-400 text-xs">Vazio.</div>
+                            </div>
+                            <div class="mt-4 pt-3 border-t border-red-100">
+                                <p class="text-[10px] text-gray-500 font-bold uppercase">Total Débito</p>
+                                <span id="subtotal-expense" class="font-bold text-red-600 text-sm">R$ 0,00</span>
+                            </div>
+                        </div>
+
+                        <!-- Coluna Cartão -->
+                        <div class="flex flex-col h-full bg-purple-50/30 p-3 rounded-xl">
+                            <div class="flex items-center gap-2 pb-2 border-b-2 border-purple-500 mb-4">
+                                <span class="text-xl">💳</span>
+                                <h3 class="font-bold text-purple-700 text-sm">Cartão</h3>
+                            </div>
+                            <div class="history-column flex-grow">
+                                <table class="w-full text-left">
+                                    <tbody id="credit-list" class="divide-y divide-gray-100"></tbody>
+                                </table>
+                                <div id="credit-empty" class="hidden text-center py-4 text-gray-400 text-xs">Vazio.</div>
+                            </div>
+                            <div class="mt-4 pt-3 border-t border-purple-100">
+                                <p class="text-[10px] text-gray-500 font-bold uppercase">Total Cartão</p>
+                                <span id="subtotal-credit" class="font-bold text-purple-600 text-sm">R$ 0,00</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let transactions = JSON.parse(localStorage.getItem('capivara_finance_data')) || [];
+        let currentType = 'gasto';
+        let evolutionChart = null;
+
+        const categoryColors = {
+            'Lazer': 'bg-pink-100 text-pink-600', 'Alimentação': 'bg-orange-100 text-orange-600',
+            'Transporte': 'bg-blue-100 text-blue-600', 'Saúde': 'bg-red-100 text-red-600',
+            'Educação': 'bg-indigo-100 text-indigo-600', 'Casa': 'bg-amber-100 text-amber-600',
+            'Renda': 'bg-green-100 text-green-600', 'Investimento': 'bg-emerald-100 text-emerald-600',
+            'Outros': 'bg-gray-100 text-gray-600'
+        };
+
+        const expenseCategories = [
+            { id: 'Alimentação', label: '🍕 Alimentação' }, { id: 'Casa', label: '🏠 Casa' },
+            { id: 'Transporte', label: '🚗 Transporte' }, { id: 'Lazer', label: '🎡 Lazer' },
+            { id: 'Saúde', label: '🏥 Saúde' }, { id: 'Educação', label: '📚 Educação' },
+            { id: 'Outros', label: '⚙️ Outros Gastos' }
+        ];
+
+        const incomeCategories = [
+            { id: 'Renda', label: '💰 Salário' }, { id: 'Investimento', label: '📈 Rendimentos' },
+            { id: 'Outros', label: '🎁 Outros Ganhos' }
+        ];
+
+        function setTransactionType(type) {
+            currentType = type;
+            const btnGasto = document.getElementById('btn-tab-gasto');
+            const btnGanho = document.getElementById('btn-tab-ganho');
+            const btnCartao = document.getElementById('btn-tab-cartao');
+            const submitBtn = document.getElementById('main-submit-btn');
+
+            [btnGasto, btnGanho, btnCartao].forEach(b => b.className = 'tab-btn flex-1 py-2 px-4 rounded-lg font-bold text-sm text-gray-500');
+
+            if (type === 'gasto') {
+                btnGasto.className = 'tab-btn active-gasto flex-1 py-2 px-4 rounded-lg font-bold text-sm';
+                submitBtn.className = 'col-span-2 p-4 bg-red-500 text-white font-bold rounded-lg hover:opacity-90 transition-all shadow-lg';
+                submitBtn.innerText = 'Lançar Gasto Débito';
+                populateCategories(expenseCategories);
+            } else if (type === 'cartao') {
+                btnCartao.className = 'tab-btn active-cartao flex-1 py-2 px-4 rounded-lg font-bold text-sm';
+                submitBtn.className = 'col-span-2 p-4 bg-purple-500 text-white font-bold rounded-lg hover:opacity-90 transition-all shadow-lg';
+                submitBtn.innerText = 'Lançar Gasto Cartão';
+                populateCategories(expenseCategories);
+            } else {
+                btnGanho.className = 'tab-btn active-ganho flex-1 py-2 px-4 rounded-lg font-bold text-sm';
+                submitBtn.className = 'col-span-2 p-4 bg-emerald-500 text-white font-bold rounded-lg hover:opacity-90 transition-all shadow-lg';
+                submitBtn.innerText = 'Lançar Ganho';
+                populateCategories(incomeCategories);
+            }
+        }
+
+        function populateCategories(cats) {
+            const select = document.getElementById('category');
+            select.innerHTML = cats.map(c => `<option value="${c.id}">${c.label}</option>`).join('');
+        }
+
+        const drawCapivara = (mood) => {
+            let color = "#8D6E63";
+            let mouth = `<path d="M140 120 Q150 130 160 120" stroke="black" stroke-width="3" fill="none" stroke-linecap="round"/>`;
+            if (mood === 'sad') {
+                color = "#6D4C41";
+                mouth = `<path d="M140 130 Q150 120 160 130" stroke="black" stroke-width="3" fill="none" stroke-linecap="round"/>`;
+            } else if (mood === 'party') {
+                color = "#A1887F";
+                mouth = `<path d="M140 120 Q155 140 170 120" stroke="black" stroke-width="3" fill="none" stroke-linecap="round"/>`;
+            }
+            return `<svg class="w-40 h-40 capy-body" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+                <ellipse cx="65" cy="75" rx="12" ry="15" fill="${color}" stroke="#3E2723" stroke-width="2"/>
+                <ellipse cx="110" cy="65" rx="10" ry="12" fill="${color}" stroke="#3E2723" stroke-width="2"/>
+                <path d="M40 120 C40 60, 160 60, 180 120 C180 170, 40 170, 40 120" fill="${color}" stroke="#3E2723" stroke-width="2"/>
+                <g class="capy-eye"><circle cx="140" cy="95" r="5" fill="black"/><circle cx="142" cy="93" r="1.5" fill="white"/></g>
+                ${mouth}
+                <rect x="70" y="155" width="22" height="18" rx="8" fill="#3E2723"/><rect x="130" y="155" width="22" height="18" rx="8" fill="#3E2723"/>
+            </svg>`;
+        };
+
+        function addTransaction() {
+            const desc = document.getElementById('desc').value;
+            const val = parseFloat(document.getElementById('val').value);
+            const dateInput = document.getElementById('transaction-date').value;
+            const category = document.getElementById('category').value;
+            if (!desc || isNaN(val) || !dateInput) return;
+            const dateObj = new Date(dateInput + "T12:00:00");
+            
+            let amount = val;
+            let subType = 'income';
+            if(currentType === 'gasto') { amount = -val; subType = 'debit'; }
+            if(currentType === 'cartao') { amount = -val; subType = 'credit'; }
+
+            const monthYear = `${dateObj.getFullYear()}-${dateObj.getMonth() + 1}`;
+            transactions.push({
+                id: Date.now(), description: desc, amount: amount,
+                category: category, monthYear: monthYear, 
+                day: dateObj.getDate(), date: dateObj.toLocaleDateString('pt-BR'),
+                subType: subType
+            });
+            transactions.sort((a, b) => b.id - a.id);
+            saveData();
+            document.getElementById('desc').value = '';
+            document.getElementById('val').value = '';
+            updateUI();
+        }
+
+        function exportToCSV() {
+            if (transactions.length === 0) {
+                alert("Não há dados para exportar.");
+                return;
+            }
+
+            // Headers do CSV
+            let csvContent = "data:text/csv;charset=utf-8,";
+            csvContent += "Data,Descricao,Valor,Categoria,Tipo\n";
+
+            // Linhas de dados
+            transactions.forEach(t => {
+                let rowType = t.amount >= 0 ? "Ganho" : (t.subType === 'credit' ? "Cartão" : "Débito");
+                let row = `${t.date},"${t.description.replace(/"/g, '""')}",${Math.abs(t.amount)},${t.category},${rowType}`;
+                csvContent += row + "\n";
+            });
+
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", `capivara_financeiro_${new Date().toLocaleDateString('pt-BR').replace(/\//g, '-')}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        function updateMonthContext() { updateUI(); }
+
+        function deleteTransaction(id) {
+            transactions = transactions.filter(t => t.id !== id);
+            saveData();
+            updateUI();
+        }
+
+        function saveData() { localStorage.setItem('capivara_finance_data', JSON.stringify(transactions)); }
+
+        function clearAll() {
+            if(confirm("Deseja apagar todos os dados registrados?")) {
+                transactions = []; saveData(); updateUI();
+            }
+        }
+
+        function initChart() {
+            const ctx = document.getElementById('evolutionChart').getContext('2d');
+            evolutionChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    datasets: [
+                        { label: 'Ganhos', borderColor: '#10b981', backgroundColor: '#10b981', data: [], tension: 0.3, showLine: true },
+                        { label: 'Débitos', borderColor: '#ef4444', backgroundColor: '#ef4444', data: [], tension: 0.3, showLine: true },
+                        { label: 'Cartão', borderColor: '#8b5cf6', backgroundColor: '#8b5cf6', data: [], tension: 0.3, showLine: true }
+                    ]
+                },
+                options: { 
+                    responsive: true, 
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: { type: 'linear', min: 1, max: 31, ticks: { stepSize: 1, callback: (v) => `${v}` } }
+                    }
+                }
+            });
+        }
+
+        function createRow(t) {
+            return `
+                <tr class="group">
+                    <td class="py-2">
+                        <p class="text-[8px] text-gray-400 font-bold">${t.date}</p>
+                        <p class="font-medium text-gray-800 text-[10px] leading-tight mb-1">${t.description}</p>
+                        <span class="category-tag ${categoryColors[t.category]}" style="font-size: 8px; padding: 1px 5px;">${t.category}</span>
+                    </td>
+                    <td class="py-2 text-right font-bold text-[10px] ${t.amount >= 0 ? 'text-green-600' : (t.subType === 'credit' ? 'text-purple-600' : 'text-red-600')}">
+                        ${Math.abs(t.amount).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                    </td>
+                    <td class="py-2 text-right">
+                        <button onclick="deleteTransaction(${t.id})" class="text-gray-300 hover:text-red-500 ml-1">✕</button>
+                    </td>
+                </tr>
+            `;
+        }
+
+        function updateUI() {
+            const incomeList = document.getElementById('income-list');
+            const expenseList = document.getElementById('expense-list');
+            const creditList = document.getElementById('credit-list');
+            
+            const selectedMonth = document.getElementById('month-filter').value;
+            const [selYear, selMonth] = selectedMonth.split('-').map(Number);
+            
+            let carriedBalance = 0;
+            transactions.forEach(t => {
+                const [tYear, tMonth] = t.monthYear.split('-').map(Number);
+                if (tYear < selYear || (tYear === selYear && tMonth < selMonth)) carriedBalance += t.amount;
+            });
+
+            document.getElementById('carried-balance').innerText = carriedBalance.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+            let sumIncome = 0;
+            let sumExpense = 0;
+            let sumCredit = 0;
+            let categoryTotals = {};
+            let totalExpensesGlobal = 0;
+            let monthBalance = 0;
+
+            const gainsMap = {}, debitsMap = {}, creditsMap = {};
+
+            incomeList.innerHTML = ''; expenseList.innerHTML = ''; creditList.innerHTML = '';
+            
+            let monthTransactions = transactions.filter(t => t.monthYear === selectedMonth);
+
+            monthTransactions.forEach(t => {
+                monthBalance += t.amount;
+                const d = t.day;
+                if (t.amount >= 0) {
+                    sumIncome += t.amount;
+                    gainsMap[d] = (gainsMap[d] || 0) + t.amount;
+                    incomeList.innerHTML += createRow(t);
+                } else {
+                    totalExpensesGlobal += Math.abs(t.amount);
+                    categoryTotals[t.category] = (categoryTotals[t.category] || 0) + Math.abs(t.amount);
+                    
+                    if(t.subType === 'credit') {
+                        sumCredit += Math.abs(t.amount);
+                        creditsMap[d] = (creditsMap[d] || 0) + Math.abs(t.amount);
+                        creditList.innerHTML += createRow(t);
+                    } else {
+                        sumExpense += Math.abs(t.amount);
+                        debitsMap[d] = (debitsMap[d] || 0) + Math.abs(t.amount);
+                        expenseList.innerHTML += createRow(t);
+                    }
+                }
+            });
+
+            document.getElementById('summary-debit-total').innerText = sumExpense.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+            document.getElementById('summary-credit-total').innerText = sumCredit.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+            document.getElementById('consolidated-expense-total').innerText = (sumExpense + sumCredit).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+            document.getElementById('subtotal-income').innerText = sumIncome.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+            document.getElementById('subtotal-expense').innerText = sumExpense.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+            document.getElementById('subtotal-credit').innerText = sumCredit.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+            document.getElementById('income-empty').style.display = sumIncome === 0 ? 'block' : 'none';
+            document.getElementById('expense-empty').style.display = sumExpense === 0 ? 'block' : 'none';
+            document.getElementById('credit-empty').style.display = sumCredit === 0 ? 'block' : 'none';
+
+            if (evolutionChart) {
+                evolutionChart.data.datasets[0].data = Object.keys(gainsMap).map(d => ({x: parseInt(d), y: gainsMap[d]})).sort((a,b) => a.x - b.x);
+                evolutionChart.data.datasets[1].data = Object.keys(debitsMap).map(d => ({x: parseInt(d), y: debitsMap[d]})).sort((a,b) => a.x - b.x);
+                evolutionChart.data.datasets[2].data = Object.keys(creditsMap).map(d => ({x: parseInt(d), y: creditsMap[d]})).sort((a,b) => a.x - b.x);
+                evolutionChart.update();
+            }
+
+            const breakdownEl = document.getElementById('category-breakdown');
+            breakdownEl.innerHTML = totalExpensesGlobal > 0 ? '' : '<p class="text-gray-400 text-xs italic">Sem gastos.</p>';
+            Object.keys(categoryTotals).forEach(cat => {
+                const p = (categoryTotals[cat] / totalExpensesGlobal) * 100;
+                breakdownEl.innerHTML += `
+                    <div class="mb-2">
+                        <div class="flex justify-between text-[10px] mb-1 font-medium"><span>${cat}</span><span>${p.toFixed(0)}%</span></div>
+                        <div class="w-full bg-gray-100 h-1.5 rounded-full"><div class="h-1.5 rounded-full ${categoryColors[cat].split(' ')[0]}" style="width:${p}%"></div></div>
+                    </div>`;
+            });
+
+            const finalBalance = carriedBalance + monthBalance;
+            const balanceEl = document.getElementById('total-balance');
+            balanceEl.innerText = finalBalance.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+            balanceEl.className = `text-2xl font-bold ${finalBalance >= 0 ? 'text-green-600' : 'text-red-600'}`;
+            
+            const goal = parseFloat(document.getElementById('saving-goal').value) || 0;
+            const pGoal = goal > 0 ? Math.min((finalBalance/goal)*100, 100) : 0;
+            document.getElementById('goal-progress').style.width = Math.max(0, pGoal) + '%';
+            document.getElementById('goal-percent').innerText = Math.floor(pGoal) + '%';
+
+            document.getElementById('capivara-mood').innerHTML = finalBalance < 0 ? drawCapivara('sad') : (finalBalance >= goal && goal > 0 ? drawCapivara('party') : drawCapivara('happy'));
+            document.getElementById('capivara-msg').innerText = finalBalance < 0 ? "A Capivara está preocupada!" : "Tudo sob controle!";
+        }
+
+        function setupFilter() {
+            const filter = document.getElementById('month-filter');
+            const months = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+            const now = new Date();
+            for (let year = 2025; year <= 2026; year++) {
+                months.forEach((m, i) => {
+                    const opt = document.createElement('option');
+                    opt.value = `${year}-${i + 1}`;
+                    opt.innerText = `${m} ${year}`;
+                    if(`${year}-${i + 1}` === `${now.getFullYear()}-${now.getMonth() + 1}`) opt.selected = true;
+                    filter.appendChild(opt);
+                });
+            }
+        }
+
+        window.onload = () => {
+            setupFilter();
+            setTransactionType('gasto');
+            initChart();
+            document.getElementById('transaction-date').value = new Date().toISOString().split('T')[0];
+            updateUI();
+        };
+    </script>
+</body>
+</html>
