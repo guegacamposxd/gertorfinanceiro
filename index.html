@@ -82,7 +82,7 @@
     <div class="max-w-7xl mx-auto">
         <header class="text-center mb-8">
             <h1 class="text-3xl font-bold text-[#5d4037]">Capivara Financeira Pro 🦫</h1>
-            <p class="text-gray-600">Gestão com Exportação e Importação de Dados</p>
+            <p class="text-gray-600">Gestão com Saldo Acumulado e Análise de Categorias</p>
         </header>
 
         <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
@@ -138,9 +138,12 @@
                     </div>
                 </div>
 
+                <!-- CATEGORIAS (Corrigido para aparecer agora) -->
                 <div class="card p-6">
-                    <h2 class="text-lg font-semibold mb-4 text-[#5d4037]">Categorias</h2>
-                    <div id="category-breakdown" class="space-y-3"></div>
+                    <h2 class="text-lg font-semibold mb-4 text-[#5d4037]">Gastos por Categoria</h2>
+                    <div id="category-breakdown" class="space-y-3">
+                        <p class="text-gray-400 text-xs italic">Aguardando dados...</p>
+                    </div>
                 </div>
             </div>
 
@@ -157,15 +160,15 @@
                 <!-- Resumo Consolidado -->
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div class="card p-4 total-expense-card">
-                        <p class="text-[10px] text-red-700 font-bold uppercase">Gasto Total</p>
+                        <p class="text-[10px] text-red-700 font-bold uppercase">Gasto Total do Mês</p>
                         <p id="consolidated-expense-total" class="text-2xl font-black text-red-600">R$ 0,00</p>
                     </div>
                     <div class="card p-4 bg-red-50 border border-red-100">
-                        <p class="text-[10px] text-red-500 font-bold uppercase">Débito</p>
+                        <p class="text-[10px] text-red-500 font-bold uppercase">Total Débito</p>
                         <p id="summary-debit-total" class="text-xl font-bold text-red-500">R$ 0,00</p>
                     </div>
                     <div class="card p-4 bg-purple-50 border border-purple-100">
-                        <p class="text-[10px] text-purple-500 font-bold uppercase">Cartão</p>
+                        <p class="text-[10px] text-purple-500 font-bold uppercase">Total Cartão</p>
                         <p id="summary-credit-total" class="text-xl font-bold text-purple-500">R$ 0,00</p>
                     </div>
                 </div>
@@ -195,12 +198,11 @@
                 <!-- Histórico -->
                 <div class="card p-6">
                     <div class="flex justify-between items-center mb-6">
-                        <h2 class="text-lg font-semibold text-[#5d4037]">Histórico</h2>
+                        <h2 class="text-lg font-semibold text-[#5d4037]">Histórico do Mês</h2>
                         <select id="month-filter" onchange="updateMonthContext()" class="text-sm font-bold bg-gray-100 p-2 rounded-lg outline-none text-[#5d4037]"></select>
                     </div>
 
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <!-- Colunas Simplificadas -->
                         <div class="bg-green-50/30 p-3 rounded-xl">
                             <h3 class="font-bold text-green-700 text-sm mb-4 border-b-2 border-green-500">Ganhos</h3>
                             <div class="history-column"><table class="w-full text-left"><tbody id="income-list"></tbody></table><div id="income-empty" class="hidden text-center py-4 text-gray-400 text-xs">Vazio.</div></div>
@@ -348,12 +350,11 @@
             const reader = new FileReader();
             reader.onload = function(e) {
                 const text = e.target.result;
-                const rows = text.split('\n').slice(1); // Pular cabeçalho
+                const rows = text.split('\n').slice(1);
                 let importedCount = 0;
 
                 rows.forEach(row => {
                     if (!row.trim()) return;
-                    // Regex para lidar com vírgulas dentro de aspas se necessário, aqui simplificado
                     const cols = row.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
                     if (cols.length < 6) return;
 
@@ -364,7 +365,6 @@
                     const category = cols[4];
                     const subType = cols[5].trim();
 
-                    // Evitar duplicados por ID
                     if (!transactions.some(t => t.id === id)) {
                         const [d, m, y] = dateStr.split('/');
                         transactions.push({
@@ -384,8 +384,8 @@
                 transactions.sort((a, b) => b.id - a.id);
                 saveData();
                 updateUI();
-                alert(`${importedCount} transações importadas com sucesso!`);
-                event.target.value = ''; // Limpar input
+                alert(`${importedCount} transações importadas!`);
+                event.target.value = '';
             };
             reader.readAsText(file);
         }
@@ -427,6 +427,7 @@
             const incomeList = document.getElementById('income-list');
             const expenseList = document.getElementById('expense-list');
             const creditList = document.getElementById('credit-list');
+            const breakdownEl = document.getElementById('category-breakdown');
             const selectedMonth = document.getElementById('month-filter').value;
             const [selYear, selMonth] = selectedMonth.split('-').map(Number);
             
@@ -451,19 +452,43 @@
                     gainsMap[d] = (gainsMap[d] || 0) + t.amount;
                     incomeList.innerHTML += createRow(t);
                 } else {
-                    totalExpGlobal += Math.abs(t.amount);
-                    catTotals[t.category] = (catTotals[t.category] || 0) + Math.abs(t.amount);
+                    const absVal = Math.abs(t.amount);
+                    totalExpGlobal += absVal;
+                    catTotals[t.category] = (catTotals[t.category] || 0) + absVal;
                     if(t.subType === 'credit') {
-                        sumCredit += Math.abs(t.amount);
-                        creditsMap[d] = (creditsMap[d] || 0) + Math.abs(t.amount);
+                        sumCredit += absVal;
+                        creditsMap[d] = (creditsMap[d] || 0) + absVal;
                         creditList.innerHTML += createRow(t);
                     } else {
-                        sumExpense += Math.abs(t.amount);
-                        debitsMap[d] = (debitsMap[d] || 0) + Math.abs(t.amount);
+                        sumExpense += absVal;
+                        debitsMap[d] = (debitsMap[d] || 0) + absVal;
                         expenseList.innerHTML += createRow(t);
                     }
                 }
             });
+
+            // ATUALIZAR LISTA DE CATEGORIAS (BARRA LATERAL)
+            breakdownEl.innerHTML = '';
+            if (totalExpGlobal === 0) {
+                breakdownEl.innerHTML = '<p class="text-gray-400 text-xs italic">Sem gastos neste mês.</p>';
+            } else {
+                Object.keys(catTotals).sort((a,b) => catTotals[b] - catTotals[a]).forEach(cat => {
+                    const perc = (catTotals[cat] / totalExpGlobal) * 100;
+                    const colorClass = categoryColors[cat]?.split(' ')[0] || 'bg-gray-400';
+                    breakdownEl.innerHTML += `
+                        <div class="mb-3">
+                            <div class="flex justify-between text-[10px] mb-1 font-bold">
+                                <span class="text-gray-600">${cat}</span>
+                                <span class="text-[#5d4037]">${perc.toFixed(1)}%</span>
+                            </div>
+                            <div class="w-full bg-gray-100 h-2 rounded-full overflow-hidden">
+                                <div class="h-full rounded-full ${colorClass} transition-all duration-700" style="width: ${perc}%"></div>
+                            </div>
+                            <p class="text-[8px] text-right text-gray-400 mt-0.5">R$ ${catTotals[cat].toLocaleString('pt-BR')}</p>
+                        </div>
+                    `;
+                });
+            }
 
             document.getElementById('summary-debit-total').innerText = sumExpense.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
             document.getElementById('summary-credit-total').innerText = sumCredit.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
